@@ -1,0 +1,72 @@
+services:
+  postgres-providers:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: providers
+      POSTGRES_PASSWORD: providers
+      POSTGRES_DB: providers_db
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U providers -d providers_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v24.2.3
+    command:
+      - redpanda
+      - start
+      - --overprovisioned
+      - --smp
+      - "1"
+      - --memory
+      - 1G
+      - --reserve-memory
+      - 0M
+      - --check=false
+      - --kafka-addr
+      - PLAINTEXT://0.0.0.0:9092,PLAINTEXT_HOST://0.0.0.0:19092
+      - --advertise-kafka-addr
+      - PLAINTEXT://redpanda:9092,PLAINTEXT_HOST://localhost:19092
+    ports:
+      - "19092:19092"   # Kafka para clientes host
+      - "9644:9644"     # Admin API
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s localhost:9644/v1/status/ready | grep -q 'ready'"]
+      interval: 5s
+      timeout: 3s
+      retries: 40
+    restart: unless-stopped
+
+  redpanda-console:
+    image: redpandadata/console:latest
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+    ports:
+      - "8080:8080"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    restart: unless-stopped
+
+  provider:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      # platforms:
+      #   - linux/amd64   # descomenta si quieres forzar
+    environment:
+      HTTP_PORT: "8082"
+      DB_DSN: postgres://providers:providers@postgres-providers:5432/providers_db?sslmode=disable
+      KAFKA_BROKERS: redpanda:9092
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres-providers:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+    restart: unless-stopped
