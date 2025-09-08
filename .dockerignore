@@ -1,0 +1,20 @@
+# módulos/artefactos
+bin/
+dist/
+out/
+*.exe
+*.test
+*.log
+
+# caché go
+**/.vscode/
+**/.idea/
+**/.DS_Store
+**/.git
+**/.gitignore
+
+# dependencias locales
+vendor/
+
+# cobertura/tests
+coverage.*
